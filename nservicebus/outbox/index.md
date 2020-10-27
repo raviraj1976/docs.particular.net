@@ -15,7 +15,7 @@ related:
 - persistence/sql/outbox
 ---
 
-Because message queues generally do not support any form of transactions, message handlers that modify business data in a database run into problems when the messages that are sent become inconsistent with the changes made to business data, resulting in **ghost messages** or **phantom records**.
+Generally, message queues do not support distributed transactions, and nor do some data stores. This may cause problems when message handlers modify business data. Business data and message queues may become inconsistent in the form of **phantom records** or **ghost messages** (see below).
 
 The **Outbox** is an NServiceBus feature that makes changes to business data consistent with messaging operations as if both the database and messaging layer were bound by an atomic transaction.
 

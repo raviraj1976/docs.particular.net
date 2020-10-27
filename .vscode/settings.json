@@ -1,0 +1,13 @@
+{
+    "cSpell.words": [
+        "Deduplication",
+        "MSMQ",
+        "dedupe",
+        "deduplicated",
+        "deduplicating",
+        "idempotency",
+        "nhibernate",
+        "nservicebus",
+        "ravendb"
+    ]
+}
