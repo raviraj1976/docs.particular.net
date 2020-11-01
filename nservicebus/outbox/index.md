@@ -15,20 +15,20 @@ related:
 - persistence/sql/outbox
 ---
 
-Generally, message queues do not support distributed transactions, and nor do some data stores. This may cause problems when message handlers modify business data. Business data and message queues may become inconsistent in the form of **phantom records** or **ghost messages** (see below).
+Most message queues, and some data stores, do not support distributed transactions. This may cause problems when message handlers modify business data. Business data and messages may become inconsistent in the form of **phantom records** or **ghost messages** (see below).
 
-The **Outbox** is an NServiceBus feature that makes changes to business data consistent with messaging operations as if both the database and messaging layer were bound by an atomic transaction.
+The NServiceBus **outbox** feature ensures consistency between business data and messages. It simulates an atomic transaction, distributed across both the data store used for business data and the message queue used for messaging.
 
 ## The consistency problem
 
-Consider a message handler that creates a `User` in the business database, and also publishes a `UserCreated` event. If a failure occurs during the execution of the message handler, two different scenarios can occur based on the order of operations.
+Consider a message handler that creates a `User` in the business database, and also publishes a `UserCreated` event. If a failure occurs during the execution of the message handler, two scenarios may occur, depending on the order of operations.
 
-1. **Phantom record**: The handler inserts the `User` in the database, then publishes `UserCreated` event.
-   * If a failure occurs between these two operations, the `User` would be committed to the database, but no `UserCreated` event is published.
-   * The message handler did not complete, so the message is retried, and both operations are repeated. This results in a duplicate `User` in the database, known as a phantom record, which is never announced to the rest of the system.
-2. **Ghost message**: The handler publishes the `UserCreated` event first, then inserts the `User` in the database.
-   * If a failure occurs between these two operations, the `UserCreated` event is published and dispatched immediately, but the `User` it refers to is never committed to the database.
-   * The rest of the system is notified about the creation of data that never existed, causing further errors in other message handlers down the line.
+1. **Phantom record**: The handler creates the `User` in the database first, then publishes the `UserCreated` event. If a failure occurs between these two operations:
+   * The `User` is created in the database, but the `UserCreated` event is not published.
+   * The message handler does not complete, so the message is retried, and both operations are repeated. This results in a duplicate `User` in the database, known as a phantom record, which is never announced to the rest of the system.
+2. **Ghost message**: The handler publishes the `UserCreated` event first, then creates the `User` in the database. If a failure occurs between these two operations:
+   * The `UserCreated` event is published, but the `User` is not created in the database.
+   * The rest of the system is notified about the creation of the `User`, but the `User` does not exist in the database. This causes further errors in other message handlers which expect the `User` to exist in the database.
 
 To avoid these problems, developers of distributed systems have two options:
 
