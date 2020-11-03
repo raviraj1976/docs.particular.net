@@ -32,10 +32,10 @@ Consider a message handler that creates a `User` in the business database, and a
 
 To avoid these problems, developers of distributed systems have two options:
 
-* Be very careful to make every single message handler [idempotent](https://en.wikipedia.org/wiki/Idempotence)—that is, coded so that the message handler can be executed multiple times without adverse side effects.
-* Implement infrastructure to create consistency between messaging and data operations so that hard idempotency is no longer a requirement.
+1. Ensure all message handlers are [idempotent](https://en.wikipedia.org/wiki/Idempotence). This means each message handler can handle the same message multiple times without adverse side effects. This is often very difficult to achieve.
+2. Implement infrastructure which guarantees consistency between business data and messages. This avoids the need for all messages handlers to be idempotent.
 
-The Outbox is that piece of infrastructure.
+The outbox feature is the infrastructure described in the second option.
 
 ## How it works
 
