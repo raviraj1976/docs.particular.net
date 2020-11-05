@@ -39,53 +39,57 @@ The outbox feature is the infrastructure described in the second option.
 
 ## How it works
 
-The Outbox guarantees exactly-once message processing by taking advantage of the database transaction used to store business data.
+The outbox feature guarantees that each message is processed once and once only, using the database transaction used to store business data.
 
-Returning to the earlier example of creating a `User` and then publishing a `UserCreated` event, NServiceBus will follow this process when processing a message using the outbox feature. Extended descriptions can be found beneath the diagram.
+Returning to the earlier example of a message handler which creates a `User` and then publishes a `UserCreated` event, the following process occurs. Detailed descriptions are beneath the diagram.
 
 ```mermaid
 graph TD
-  createTx(1. Begin transaction)
-  dedupe{2. Deduplication}
-  handler(3. Execute handler)
-  storeOutbox(4. Store outgoing<br/>messages in outbox)
-  commitTx(5. Commit transaction)
-  isDispatched{6. Have outgoing<br/>messages been<br/>dispatched?}
-  dispatch(7. Dispatch messages)
-  updateOutbox(8. Set as dispatched)
-  ack(9. Consume message)
+  receiveMessage(1. Receive incoming message)
+  createTx(2. Begin transaction)
+  dedupe{3. Deduplication}
+  handler(4. Execute handler)
+  storeOutbox(5. Store outgoing<br/>messages in outbox)
+  commitTx(6. Commit transaction)
+  areSent{7. Have outgoing<br/>messages been<br/>sent?}
+  send(8. Sent messages)
+  updateOutbox(9. Set as sent)
+  ack(10. Acknowledge incoming message)
 
+  receiveMessage-->createTx
   createTx-->dedupe
   dedupe-- No record found -->handler
   handler-->storeOutbox
   storeOutbox-->commitTx
-  commitTx-->isDispatched
-  dispatch-->updateOutbox
+  commitTx-->areSent
+  send-->updateOutbox
   updateOutbox-->ack
 
   dedupe-- Record found -->commitTx
-  isDispatched-- No -->dispatch
-  isDispatched-- Yes -->ack
+  areSent-- No -->send
+  areSent-- Yes -->ack
 ```
 
-Here is more detail on each stage of the process:
+More detail on each stage of the process:
 
-1. Begin a database transaction on the business database.
-2. Check the outbox storage in the business database to see if this message has been processed before. This is called **deduplication**.
-   * If the message has been processed before, skip to **Step 5**.
-   * If the message has never been seen before, continue to **Step 3**.
-3. Execute the message handler.
-   * Any outgoing messages are not dispatched immediately but stored in RAM.
-4. Create a record in outbox storage in the business database containing the details of all outgoing messages.
-5. Commit the transaction on the business database.
+1. Receive the incoming message from the queue.
+   * Do not acknowledge receipt of the message yet, so that if processing fails, the message will be delivered again.
+2. Begin a transaction in the database.
+3. Check outbox storage in the database to see if the incoming message has already been processed. This is called **deduplication**.
+   * If the message has already been processed, skip to **step 6**.
+   * If the message has not yet been processed, continue to **step 4**.
+4. Execute the message handler for the incoming message
+   * Any outgoing messages are not immediately sent.
+5. Store any outgoing messages in outbox storage in the database.
+6. Commit the transaction in the database.
    * This is the operation that ensures consistency between messaging and database operations.
-6. Determine if the outgoing messages have been dispatched yet.
-   * If messages have already been dispatched, this message is a duplicate, so skip to **Step 9**.
-   * If there are still messages to dispatch, continue to **Step 7**.
-7. Dispatch the outgoing messages stored in the outbox storage to the message transport.
-   * If processing fails at this point, it's possible that duplicate messages will be dispatched to the message transport. These messages will all have the same `MessageId`, and will be deduplicated by the outbox feature (in Step 2) by the message endpoint that receives the duplicate messages.
-8. Update the outbox storage to show that the outgoing messages have been dispatched.
-9. Consume (ACK) the incoming message so that the messaging infrastructure knows it has been processed successfully.
+7. Check if the outgoing messages have already been sent.
+   * If the outgoing messages have already been sent, the incoming message is a duplicate, so skip to **step 10**.
+   * If the outgoing messages have not yet been sent, continue to **Step 8**.
+8. Send the outgoing messages to the queue.
+   * If processing fails at this point, duplicate messages may be sent to the queue. Any duplicates will have the same `MessageId`, so they will be deduplicated by the outbox feature (in **step 3**) in the endpoint that receives them.
+9. Update outbox storage to show that the outgoing messages have been sent.
+10. Acknowledge (ACK) receipt of the incoming message so that it is removed from the queue and will not be delivered again.
 
 ## Important design considerations
 
